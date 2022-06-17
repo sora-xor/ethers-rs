@@ -152,7 +152,7 @@ impl<'de: 'a, 'a> Deserialize<'de> for Response<'a> {
                             params = Some(value);
                         }
                         "metrics" => {
-                            map.next_value()?;
+                            let _value: &RawValue = map.next_value()?;
                         }
                         key => {
                             return Err(de::Error::unknown_field(
