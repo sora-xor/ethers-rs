@@ -15,6 +15,7 @@ use ethers_solc::{
     },
     buildinfo::BuildInfo,
     cache::{SolFilesCache, SOLIDITY_FILES_CACHE_FILENAME},
+    info::ContractInfo,
     project_util::*,
     remappings::Remapping,
     CompilerInput, ConfigurableArtifacts, ExtraOutputValues, Graph, Project, ProjectCompileOutput,
@@ -139,6 +140,7 @@ fn can_compile_configured() {
             metadata: true,
             ir: true,
             ir_optimized: true,
+            opcodes: true,
             ..Default::default()
         },
         ..Default::default()
@@ -152,6 +154,7 @@ fn can_compile_configured() {
     assert!(artifact.raw_metadata.is_some());
     assert!(artifact.ir.is_some());
     assert!(artifact.ir_optimized.is_some());
+    assert!(artifact.opcodes.is_some());
 }
 
 #[test]
@@ -1516,24 +1519,47 @@ fn can_compile_sparse_with_link_references() {
     )
     .unwrap();
 
-    tmp.add_source(
-        "mylib.sol",
-        r#"
+    let my_lib_path = tmp
+        .add_source(
+            "mylib.sol",
+            r#"
     pragma solidity =0.8.12;
     library MyLib {
        function doStuff() external pure returns (uint256) {return 1337;}
     }
    "#,
-    )
-    .unwrap();
+        )
+        .unwrap();
 
     let mut compiled = tmp.compile_sparse(TestFileFilter::default()).unwrap();
     assert!(!compiled.has_compiler_errors());
+
+    let mut output = compiled.clone().output();
 
     assert!(compiled.find("ATest").is_some());
     assert!(compiled.find("MyLib").is_some());
     let lib = compiled.remove("MyLib").unwrap();
     assert!(lib.bytecode.is_some());
+    let lib = compiled.remove("MyLib");
+    assert!(lib.is_none());
+
+    let mut dup = output.clone();
+    let lib = dup.remove_first("MyLib");
+    assert!(lib.is_some());
+    let lib = dup.remove_first("MyLib");
+    assert!(lib.is_none());
+
+    dup = output.clone();
+    let lib = dup.remove(my_lib_path.to_string_lossy(), "MyLib");
+    assert!(lib.is_some());
+    let lib = dup.remove(my_lib_path.to_string_lossy(), "MyLib");
+    assert!(lib.is_none());
+
+    let info = ContractInfo::new(format!("{}:{}", my_lib_path.to_string_lossy(), "MyLib"));
+    let lib = output.remove_contract(&info);
+    assert!(lib.is_some());
+    let lib = output.remove_contract(&info);
+    assert!(lib.is_none());
 }
 
 #[test]

@@ -422,6 +422,24 @@ impl Settings {
                 })
                 .collect(),
         );
+
+        if let Some(mut model_checker) = self.model_checker.take() {
+            model_checker.contracts = model_checker
+                .contracts
+                .into_iter()
+                .map(|(path, contracts)| {
+                    (
+                        Path::new(&path)
+                            .strip_prefix(base)
+                            .map(|p| format!("{}", p.display()))
+                            .unwrap_or(path),
+                        contracts,
+                    )
+                })
+                .collect();
+            self.model_checker = Some(model_checker);
+        }
+
         self
     }
 }
@@ -858,7 +876,7 @@ pub struct Metadata {
 
 /// A helper type that ensures lossless (de)serialisation so we can preserve the exact String
 /// metadata value that's being hashed by solc
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LosslessMetadata {
     /// The complete abi as json value
     pub raw_metadata: String,

@@ -15,7 +15,7 @@ use thiserror::Error;
 /// The block type returned from RPC calls.
 /// This is generic over a `TX` type which will be either the hash or the full transaction,
 /// i.e. `Block<TxHash>` or Block<Transaction>`.
-#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Block<TX> {
     /// Hash of the block
     pub hash: Option<H256>,
@@ -81,7 +81,7 @@ pub struct Block<TX> {
     pub mix_hash: Option<H256>,
     /// Nonce
     #[cfg(not(feature = "celo"))]
-    pub nonce: Option<U64>,
+    pub nonce: Option<crate::types::H64>,
     /// Base fee per unit of gas (if past London)
     #[serde(rename = "baseFeePerGas")]
     pub base_fee_per_gas: Option<U256>,
@@ -96,6 +96,11 @@ pub struct Block<TX> {
     #[cfg_attr(docsrs, doc(cfg(feature = "celo")))]
     #[serde(rename = "epochSnarkData", default)]
     pub epoch_snark_data: Option<EpochSnarkData>,
+
+    /// Captures unknown fields such as additional fields used by L2s
+    #[cfg(not(feature = "celo"))]
+    #[serde(flatten)]
+    pub other: crate::types::OtherFields,
 }
 
 /// Error returned by [`Block::time`].
@@ -203,6 +208,7 @@ impl Block<TxHash> {
                 mix_hash,
                 nonce,
                 base_fee_per_gas,
+                other,
                 ..
             } = self;
             Block {
@@ -228,6 +234,7 @@ impl Block<TxHash> {
                 nonce,
                 base_fee_per_gas,
                 transactions,
+                other,
             }
         }
 
@@ -305,6 +312,7 @@ impl From<Block<Transaction>> for Block<TxHash> {
                 mix_hash,
                 nonce,
                 base_fee_per_gas,
+                other,
             } = full;
             Block {
                 hash,
@@ -329,6 +337,7 @@ impl From<Block<Transaction>> for Block<TxHash> {
                 nonce,
                 base_fee_per_gas,
                 transactions: transactions.iter().map(|tx| tx.hash).collect(),
+                other,
             }
         }
 

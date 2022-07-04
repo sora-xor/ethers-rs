@@ -6,6 +6,7 @@ use crate::{
         Error,
     },
     buildinfo::RawBuildInfo,
+    info::ContractInfoRef,
     sources::{VersionedSourceFile, VersionedSourceFiles},
     ArtifactId, ArtifactOutput, Artifacts, CompilerOutput, ConfigurableArtifacts, SolcIoError,
 };
@@ -15,6 +16,7 @@ use std::{collections::BTreeMap, fmt, path::Path};
 use tracing::trace;
 
 pub mod contracts;
+pub mod info;
 pub mod sources;
 
 /// Contains a mixture of already compiled/cached artifacts and the input set of sources that still
@@ -354,11 +356,59 @@ impl AggregatedCompilerOutput {
     /// use ethers_solc::artifacts::*;
     /// # fn demo(project: Project) {
     /// let mut output = project.compile().unwrap().output();
-    /// let contract = output.remove("Greeter").unwrap();
+    /// let contract = output.remove_first("Greeter").unwrap();
     /// # }
     /// ```
-    pub fn remove(&mut self, contract: impl AsRef<str>) -> Option<Contract> {
-        self.contracts.remove(contract)
+    pub fn remove_first(&mut self, contract: impl AsRef<str>) -> Option<Contract> {
+        self.contracts.remove_first(contract)
+    }
+
+    /// Removes the contract with matching path and name
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use ethers_solc::Project;
+    /// use ethers_solc::artifacts::*;
+    /// # fn demo(project: Project) {
+    /// let mut output = project.compile().unwrap().output();
+    /// let contract = output.remove("src/Greeter.sol", "Greeter").unwrap();
+    /// # }
+    /// ```
+    pub fn remove(&mut self, path: impl AsRef<str>, contract: impl AsRef<str>) -> Option<Contract> {
+        self.contracts.remove(path, contract)
+    }
+
+    /// Removes the contract with matching path and name using the `<path>:<contractname>` pattern
+    /// where `path` is optional.
+    ///
+    /// If the `path` segment is `None`, then the first matching `Contract` is returned, see
+    /// [Self::remove_first]
+    ///
+    ///
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use ethers_solc::Project;
+    /// use ethers_solc::artifacts::*;
+    /// use ethers_solc::info::ContractInfo;
+    /// # fn demo(project: Project) {
+    /// let mut output = project.compile().unwrap().output();
+    /// let info = ContractInfo::new("src/Greeter.sol:Greeter");
+    /// let contract = output.remove_contract(&info).unwrap();
+    /// # }
+    /// ```
+    pub fn remove_contract<'a>(
+        &mut self,
+        info: impl Into<ContractInfoRef<'a>>,
+    ) -> Option<Contract> {
+        let ContractInfoRef { path, name } = info.into();
+        if let Some(path) = path {
+            self.remove(path, name)
+        } else {
+            self.remove_first(name)
+        }
     }
 
     /// Iterate over all contracts and their names
@@ -371,9 +421,49 @@ impl AggregatedCompilerOutput {
         self.contracts.into_contracts()
     }
 
+    /// Returns an iterator over (`file`, `name`, `Contract`)
+    pub fn contracts_with_files_iter(&self) -> impl Iterator<Item = (&String, &String, &Contract)> {
+        self.contracts.contracts_with_files()
+    }
+
+    /// Returns an iterator over (`file`, `name`, `Contract`)
+    pub fn contracts_with_files_into_iter(
+        self,
+    ) -> impl Iterator<Item = (String, String, Contract)> {
+        self.contracts.into_contracts_with_files()
+    }
+
+    /// Returns an iterator over (`file`, `name`, `Contract`, `Version`)
+    pub fn contracts_with_files_and_version_iter(
+        &self,
+    ) -> impl Iterator<Item = (&String, &String, &Contract, &Version)> {
+        self.contracts.contracts_with_files_and_version()
+    }
+
+    /// Returns an iterator over (`file`, `name`, `Contract`, `Version`)
+    pub fn contracts_with_files_and_version_into_iter(
+        self,
+    ) -> impl Iterator<Item = (String, String, Contract, Version)> {
+        self.contracts.into_contracts_with_files_and_version()
+    }
+
     /// Given the contract file's path and the contract's name, tries to return the contract's
     /// bytecode, runtime bytecode, and abi
-    pub fn get(&self, path: &str, contract: &str) -> Option<CompactContractRef> {
+    /// # Example
+    ///
+    /// ```
+    /// use ethers_solc::Project;
+    /// use ethers_solc::artifacts::*;
+    /// # fn demo(project: Project) {
+    /// let output = project.compile().unwrap().output();
+    /// let contract = output.get("src/Greeter.sol", "Greeter").unwrap();
+    /// # }
+    /// ```
+    pub fn get(
+        &self,
+        path: impl AsRef<str>,
+        contract: impl AsRef<str>,
+    ) -> Option<CompactContractRef> {
         self.contracts.get(path, contract)
     }
 

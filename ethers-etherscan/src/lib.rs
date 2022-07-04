@@ -101,8 +101,10 @@ impl Client {
             Chain::Poa |
             Chain::Oasis |
             Chain::Emerald |
-            Chain::EmeraldTestnet => String::default(),
-            Chain::Moonbeam | Chain::MoonbeamDev | Chain::Moonriver => {
+            Chain::EmeraldTestnet |
+            Chain::Evmos |
+            Chain::EvmosTestnet => String::default(),
+            Chain::Moonbeam | Chain::Moonbase | Chain::MoonbeamDev | Chain::Moonriver => {
                 std::env::var("MOONSCAN_API_KEY")?
             }
             Chain::AnvilHardhat | Chain::Dev => {
@@ -270,6 +272,9 @@ impl ClientBuilder {
             Chain::Moonbeam => {
                 urls("https://api-moonbeam.moonscan.io/api", "https://moonbeam.moonscan.io/")
             }
+            Chain::Moonbase => {
+                urls("https://api-moonbase.moonscan.io/api", "https://moonbase.moonscan.io/")
+            }
             Chain::Moonriver => {
                 urls("https://api-moonriver.moonscan.io/api", "https://moonriver.moonscan.io")
             }
@@ -299,6 +304,8 @@ impl ClientBuilder {
             Chain::AnvilHardhat | Chain::Dev => {
                 return Err(EtherscanError::LocalNetworksNotSupported)
             }
+            Chain::Evmos => urls("https://evm.evmos.org/api", "https://evm.evmos.org/"),
+            Chain::EvmosTestnet => urls("https://evm.evmos.dev/api", "https://evm.evmos.dev/"),
             chain => return Err(EtherscanError::ChainNotSupported(chain)),
         };
         self.with_api_url(etherscan_api_url?)?.with_url(etherscan_url?)

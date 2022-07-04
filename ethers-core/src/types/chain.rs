@@ -33,7 +33,8 @@ pub enum Chain {
     Avalanche = 43114,
     AvalancheFuji = 43113,
     Sepolia = 11155111,
-    Moonbeam = 1287,
+    Moonbeam = 1284,
+    Moonbase = 1287,
     MoonbeamDev = 1281,
     Moonriver = 1285,
     Optimism = 10,
@@ -52,6 +53,8 @@ pub enum Chain {
     Oasis = 26863,
     Emerald = 42262,
     EmeraldTestnet = 42261,
+    Evmos = 9001,
+    EvmosTestnet = 9000,
 }
 
 impl fmt::Display for Chain {
@@ -69,6 +72,7 @@ impl fmt::Display for Chain {
             Chain::AvalancheFuji => "avalanche-fuji",
             Chain::Sepolia => "sepolia",
             Chain::Moonbeam => "moonbeam",
+            Chain::Moonbase => "moonbase",
             Chain::MoonbeamDev => "moonbeam-dev",
             Chain::Moonriver => "moonriver",
             Chain::Optimism => "optimism",
@@ -89,6 +93,8 @@ impl fmt::Display for Chain {
             Chain::Emerald => "emerald",
             Chain::EmeraldTestnet => "emerald-testnet",
             Chain::AnvilHardhat => "anvil-hardhat",
+            Chain::Evmos => "evmos",
+            Chain::EvmosTestnet => "evmos-testnet",
         };
 
         write!(formatter, "{}", chain)
@@ -133,8 +139,9 @@ impl TryFrom<u64> for Chain {
             43114 => Chain::Avalanche,
             43113 => Chain::AvalancheFuji,
             11155111 => Chain::Sepolia,
-            1287 => Chain::Moonbeam,
-            1281 => Chain::MoonbeamDev,
+            1284 => Chain::Moonbeam,
+            1281 => Chain::Moonbase,
+            1287 => Chain::MoonbeamDev,
             1285 => Chain::Moonriver,
             10 => Chain::Optimism,
             69 => Chain::OptimismKovan,
@@ -150,6 +157,8 @@ impl TryFrom<u64> for Chain {
             26863 => Chain::Oasis,
             42262 => Chain::Emerald,
             42261 => Chain::EmeraldTestnet,
+            9001 => Chain::Evmos,
+            9000 => Chain::EvmosTestnet,
             _ => return Err(ParseChainError(chain.to_string())),
         })
     }

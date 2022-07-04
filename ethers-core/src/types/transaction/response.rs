@@ -9,6 +9,7 @@ use crate::{
 };
 use rlp::{Decodable, DecoderError, RlpStream};
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 
 /// Details of a signed transaction
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -113,6 +114,11 @@ pub struct Transaction {
 
     #[serde(rename = "chainId", default, skip_serializing_if = "Option::is_none")]
     pub chain_id: Option<U256>,
+
+    /// Captures unknown fields such as additional fields used by L2s
+    #[cfg(not(feature = "celo"))]
+    #[serde(flatten)]
+    pub other: crate::types::OtherFields,
 }
 
 impl Transaction {
@@ -429,6 +435,28 @@ impl rlp::Encodable for TransactionReceipt {
     }
 }
 
+// Compares the transaction receipt against another receipt by checking the blocks first and then
+// the transaction index in the block
+impl Ord for TransactionReceipt {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self.block_number, other.block_number) {
+            (Some(number), Some(other_number)) => match number.cmp(&other_number) {
+                Ordering::Equal => self.transaction_index.cmp(&other.transaction_index),
+                ord => ord,
+            },
+            (Some(_), None) => Ordering::Less,
+            (None, Some(_)) => Ordering::Greater,
+            (None, None) => self.transaction_index.cmp(&other.transaction_index),
+        }
+    }
+}
+
+impl PartialOrd<Self> for TransactionReceipt {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 #[cfg(test)]
 #[cfg(not(feature = "celo"))]
 mod tests {
@@ -550,6 +578,7 @@ mod tests {
                 16,
             )
             .unwrap(),
+            other: Default::default(),
         };
         println!("0x{}", hex::encode(&tx.rlp()));
         assert_eq!(
@@ -593,6 +622,7 @@ mod tests {
                 16,
             )
             .unwrap(),
+            other: Default::default(),
         };
         println!("0x{}", hex::encode(&tx.rlp()));
         assert_eq!(
@@ -626,7 +656,8 @@ mod tests {
             chain_id: Some(U256::from(1)),
             access_list: None,
             max_fee_per_gas: None,
-            max_priority_fee_per_gas: None
+            max_priority_fee_per_gas: None,
+            other: Default::default()
         };
         assert_eq!(
             tx.rlp(),
@@ -672,6 +703,7 @@ mod tests {
             max_priority_fee_per_gas: Some(1500000000.into()),
             max_fee_per_gas: Some(1500000009.into()),
             chain_id: Some(5.into()),
+            other: Default::default(),
         };
         assert_eq!(
             tx.rlp(),
@@ -717,6 +749,7 @@ mod tests {
             max_priority_fee_per_gas: Some(1500000000.into()),
             max_fee_per_gas: Some(1500000009.into()),
             chain_id: Some(5.into()),
+            other: Default::default(),
         };
 
         let rlp_bytes = hex::decode("02f86f05418459682f008459682f098301a0cf9411d7c2ab0d4aa26b7d8502f6a7ef6844908495c28084e5225381c001a01a8d7bef47f6155cbdf13d57107fc577fd52880fa2862b1a50d47641f8839419a03279bbf73fde76de83440d04b9d97f3809fec8617d3557ee40ac3e0edc391514").unwrap();
@@ -762,6 +795,7 @@ mod tests {
             max_priority_fee_per_gas: Some(1500000000.into()),
             max_fee_per_gas: Some(1500000009.into()),
             chain_id: Some(5.into()),
+            other: Default::default(),
         };
 
         assert_eq!(tx.hash, tx.hash());
@@ -874,5 +908,18 @@ mod tests {
         assert!(receipt.to.is_none());
         let receipt = serde_json::to_value(receipt).unwrap();
         assert_eq!(v, receipt);
+    }
+
+    #[test]
+    fn can_sort_receipts() {
+        let mut a = TransactionReceipt { block_number: Some(0u64.into()), ..Default::default() };
+        let b = TransactionReceipt { block_number: Some(1u64.into()), ..Default::default() };
+        assert!(a < b);
+
+        a = b.clone();
+        assert_eq!(a.cmp(&b), Ordering::Equal);
+
+        a.transaction_index = 1u64.into();
+        assert!(a > b);
     }
 }
