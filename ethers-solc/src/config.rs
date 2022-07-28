@@ -119,13 +119,25 @@ impl ProjectPathsConfig {
         Ok(Source::read_all_from(&self.scripts)?)
     }
 
-    /// Returns the combined set solidity file paths for `Self::sources` and `Self::tests`
+    /// Returns true if the there is at least one solidity file in this config.
+    ///
+    /// See also, `Self::input_files()`
+    pub fn has_input_files(&self) -> bool {
+        self.input_files_iter().next().is_some()
+    }
+
+    /// Returns an iterator that yields all solidity file paths for `Self::sources`, `Self::tests`
+    /// and `Self::scripts`
+    pub fn input_files_iter(&self) -> impl Iterator<Item = PathBuf> + '_ {
+        utils::source_files_iter(&self.sources)
+            .chain(utils::source_files_iter(&self.tests))
+            .chain(utils::source_files_iter(&self.scripts))
+    }
+
+    /// Returns the combined set solidity file paths for `Self::sources`, `Self::tests` and
+    /// `Self::scripts`
     pub fn input_files(&self) -> Vec<PathBuf> {
-        utils::source_files(&self.sources)
-            .into_iter()
-            .chain(utils::source_files(&self.tests))
-            .chain(utils::source_files(&self.scripts))
-            .collect()
+        self.input_files_iter().collect()
     }
 
     /// Returns the combined set of `Self::read_sources` + `Self::read_tests` + `Self::read_scripts`
@@ -570,17 +582,15 @@ impl ProjectPathsConfigBuilder {
         let root = utils::canonicalized(root);
 
         let libraries = self.libraries.unwrap_or_else(|| ProjectPathsConfig::find_libs(&root));
+        let artifacts =
+            self.artifacts.unwrap_or_else(|| ProjectPathsConfig::find_artifacts_dir(&root));
 
         ProjectPathsConfig {
             cache: self
                 .cache
                 .unwrap_or_else(|| root.join("cache").join(SOLIDITY_FILES_CACHE_FILENAME)),
-            artifacts: self
-                .artifacts
-                .unwrap_or_else(|| ProjectPathsConfig::find_artifacts_dir(&root)),
-            build_infos: self.build_infos.unwrap_or_else(|| {
-                ProjectPathsConfig::find_artifacts_dir(&root).join("build-info")
-            }),
+            build_infos: self.build_infos.unwrap_or_else(|| artifacts.join("build-info")),
+            artifacts,
             sources: self.sources.unwrap_or_else(|| ProjectPathsConfig::find_source_dir(&root)),
             tests: self.tests.unwrap_or_else(|| root.join("test")),
             scripts: self.scripts.unwrap_or_else(|| root.join("script")),
@@ -775,5 +785,22 @@ mod tests {
             ProjectPathsConfig::builder().build_with_root(&root).libraries,
             vec![utils::canonicalized(lib)],
         );
+    }
+
+    #[test]
+    fn can_have_sane_build_info_default() {
+        let root = crate::utils::tempdir("root").unwrap();
+        let root = root.path();
+        let artifacts = root.join("forge-artifacts");
+
+        // Set the artifacts directory without setting the
+        // build info directory
+        let project = ProjectPathsConfig::builder().artifacts(&artifacts).build_with_root(&root);
+
+        // The artifacts should be set correctly based on the configured value
+        assert_eq!(project.artifacts, utils::canonicalized(artifacts));
+
+        // The build infos should by default in the artifacts directory
+        assert_eq!(project.build_infos, utils::canonicalized(project.artifacts.join("build-info")));
     }
 }

@@ -115,7 +115,45 @@ where
     M: Middleware,
     D: EthLogDecode,
 {
-    /// Returns a stream for the event
+    /// Turns this event filter into `Stream` that yields decoded events.
+    ///
+    /// This will first install a new logs filter via [`eth_newFilter`](https://docs.alchemy.com/alchemy/apis/ethereum/eth-newfilter) using the configured `filter` object. See also [`FilterWatcher`](ethers_providers::FilterWatcher).
+    ///
+    /// Once the filter is created, this will periodically call [`eth_getFilterChanges`](https://docs.alchemy.com/alchemy/apis/ethereum/eth-getfilterchanges) to get the newest logs and decode them
+    ///
+    /// **Note:** Compared to [`Self::subscribe`], which is only available on `PubsubClient`s, such
+    /// as Websocket, this is a poll-based subscription, as the node does not notify us when a new
+    /// matching log is available, instead we have to actively ask for new logs using additional RPC
+    /// requests, and this is done on an interval basis.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # #[cfg(feature = "abigen")]
+    /// # async fn test<M:ethers_providers::Middleware>(contract: ethers_contract::Contract<M>) {
+    /// # use ethers_core::types::*;
+    /// # use futures_util::stream::StreamExt;
+    /// # use ethers_contract::{Contract, EthEvent};
+    ///
+    /// // The event we want to get
+    /// #[derive(Clone, Debug, EthEvent)]
+    /// pub struct Approval {
+    ///     #[ethevent(indexed)]
+    ///     pub token_owner: Address,
+    ///     #[ethevent(indexed)]
+    ///     pub spender: Address,
+    ///     pub tokens: U256,
+    /// }
+    ///
+    /// let ev = contract.event::<Approval>().from_block(1337).to_block(2000);
+    /// let mut event_stream = ev.stream().await.unwrap();
+    ///
+    ///  while let Some(Ok(approval)) = event_stream.next().await {
+    ///      let Approval{token_owner,spender,tokens} = approval;
+    /// }
+    ///
+    /// # }
+    /// ```
     pub async fn stream(
         &'a self,
     ) -> Result<
@@ -127,6 +165,26 @@ where
             self.provider.watch(&self.filter).await.map_err(ContractError::MiddlewareError)?;
         Ok(EventStream::new(filter.id, filter, Box::new(move |log| self.parse_log(log))))
     }
+
+    /// As [`Self::stream`], but does not discard [`Log`] metadata.
+    pub async fn stream_with_meta(
+        &'a self,
+    ) -> Result<
+        // Wraps the FilterWatcher with a mapping to the event
+        EventStream<'a, FilterWatcher<'a, M::Provider, Log>, (D, LogMeta), ContractError<M>>,
+        ContractError<M>,
+    > {
+        let filter =
+            self.provider.watch(&self.filter).await.map_err(ContractError::MiddlewareError)?;
+        Ok(EventStream::new(
+            filter.id,
+            filter,
+            Box::new(move |log| {
+                let meta = LogMeta::from(&log);
+                Ok((self.parse_log(log)?, meta))
+            }),
+        ))
+    }
 }
 
 impl<'a, M, D> Event<'a, M, D>
@@ -136,6 +194,8 @@ where
     D: EthLogDecode,
 {
     /// Returns a subscription for the event
+    ///
+    /// See also [Self::stream()].
     pub async fn subscribe(
         &'a self,
     ) -> Result<
@@ -149,6 +209,28 @@ where
             .await
             .map_err(ContractError::MiddlewareError)?;
         Ok(EventStream::new(filter.id, filter, Box::new(move |log| self.parse_log(log))))
+    }
+
+    pub async fn subscribe_with_meta(
+        &'a self,
+    ) -> Result<
+        // Wraps the SubscriptionStream with a mapping to the event
+        EventStream<'a, SubscriptionStream<'a, M::Provider, Log>, (D, LogMeta), ContractError<M>>,
+        ContractError<M>,
+    > {
+        let filter = self
+            .provider
+            .subscribe_logs(&self.filter)
+            .await
+            .map_err(ContractError::MiddlewareError)?;
+        Ok(EventStream::new(
+            filter.id,
+            filter,
+            Box::new(move |log| {
+                let meta = LogMeta::from(&log);
+                Ok((self.parse_log(log)?, meta))
+            }),
+        ))
     }
 }
 
