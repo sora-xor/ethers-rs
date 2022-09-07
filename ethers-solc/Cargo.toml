@@ -1,7 +1,10 @@
 [package]
 name = "ethers-solc"
 version = "0.13.0"
-authors = ["Matthias Seitz <matthias.seitz@outlook.de>", "Georgios Konstantopoulos <me@gakonst.com>"]
+authors = [
+    "Matthias Seitz <matthias.seitz@outlook.de>",
+    "Georgios Konstantopoulos <me@gakonst.com>",
+]
 license = "MIT OR Apache-2.0"
 edition = "2018"
 readme = "../README.md"
@@ -43,8 +46,10 @@ cfg-if = "1.0.0"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 home = "0.5.3"
-svm = { package = "svm-rs", version = "0.2.13", default-features = false, optional = true, features = ["blocking"] }
-svm-builds = { package = "svm-rs-builds", version = "0.1.3", optional = true}
+svm = { package = "svm-rs", version = "0.2.16", default-features = false, optional = true, features = [
+    "blocking",
+] }
+svm-builds = { package = "svm-rs-builds", version = "0.1.8", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # NOTE: this enables wasm compatibility for getrandom indirectly
@@ -53,7 +58,10 @@ getrandom = { version = "0.2", features = ["js"] }
 [dev-dependencies]
 criterion = { version = "0.3", features = ["async_tokio"] }
 env_logger = "*"
-tracing-subscriber = {version = "0.3", default-features = false, features = ["env-filter", "fmt"]}
+tracing-subscriber = { version = "0.3", default-features = false, features = [
+    "env-filter",
+    "fmt",
+] }
 rand = "0.8.5"
 pretty_assertions = "1.2.1"
 tempfile = "3.3.0"
@@ -79,7 +87,13 @@ required-features = ["full", "project-util"]
 
 [features]
 default = ["rustls"]
-async = ["tokio/process", "tokio/io-util", "tokio/fs", "tokio/time", "futures-util"]
+async = [
+    "tokio/process",
+    "tokio/io-util",
+    "tokio/fs",
+    "tokio/time",
+    "futures-util",
+]
 full = ["async", "svm-solc"]
 svm-solc = ["svm/blocking", "svm-builds", "sha2"]
 # Utilities for creating and testing project workspaces
